@@ -1,0 +1,563 @@
+{% extends "base.html" %}
+{% block title %}Analysis: {{ doc.original_name }}{% endblock %}
+
+{% block content %}
+<!-- Top Header & Breadcrumb -->
+<div class="row mb-4 align-items-center">
+  <div class="col">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{{ url_for('documents.list_documents') }}">Documents</a></li>
+        <li class="breadcrumb-item active">{{ doc.original_name }}</li>
+      </ol>
+    </nav>
+    <h2 class="page-title"><i class="bi bi-cpu text-info me-2"></i>HLD Architectural Analysis</h2>
+    <p class="text-muted mb-0">AI-generated architectural summary, component breakdown, and consistency check.</p>
+  </div>
+  <div class="col-auto d-flex gap-2">
+    <a href="{{ url_for('chatbot.chat_with_doc', doc_id=doc.id) }}" class="btn btn-primary">
+      <i class="bi bi-chat-dots-fill me-1"></i>Ask Chatbot
+    </a>
+    <a href="{{ url_for('reports.report_html', doc_id=doc.id) }}" target="_blank" class="btn btn-outline-info">
+      <i class="bi bi-printer me-1"></i>Print Report
+    </a>
+    <a href="{{ url_for('reports.export_json', doc_id=doc.id) }}" class="btn btn-outline-secondary">
+      <i class="bi bi-filetype-json me-1"></i>Export JSON
+    </a>
+  </div>
+</div>
+
+<!-- Quick Stat Badges -->
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm p-3 bg-white">
+      <div class="text-muted small text-uppercase fw-semibold">AUTOSAR Release</div>
+      <div class="fs-4 fw-bold text-navy mt-1">
+        {{ summary.get('autosar_version', 'Not specified') }}
+      </div>
+      <div class="text-muted small mt-1"><i class="bi bi-gear-wide-connected me-1"></i>Standard Version</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm p-3 bg-white">
+      <div class="text-muted small text-uppercase fw-semibold">Architecture Scope</div>
+      <div class="fs-5 fw-bold text-navy mt-1 text-truncate" title="{{ summary.get('document_type', 'System HLD') }}">
+        {{ summary.get('document_type', 'System HLD') }}
+      </div>
+      <div class="text-muted small mt-1"><i class="bi bi-diagram-2 me-1"></i>Document Level</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm p-3 bg-white">
+      <div class="text-muted small text-uppercase fw-semibold">Extracted Components</div>
+      <div class="fs-4 fw-bold text-primary mt-1">
+        {{ components_data.get('components', [])|length }}
+      </div>
+      <div class="text-muted small mt-1"><i class="bi bi-box-seam me-1"></i>SWCs / BSW modules</div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-0 shadow-sm p-3 bg-white">
+      <div class="text-muted small text-uppercase fw-semibold">Inconsistencies &amp; Gaps</div>
+      {% set inc_sum = inconsistencies.get('severity_summary', {}) %}
+      <div class="fs-4 fw-bold text-danger mt-1">
+        {{ (inconsistencies.get('missing_dependencies', [])|length) + (inconsistencies.get('inconsistent_interfaces', [])|length) + (inconsistencies.get('incomplete_info', [])|length) }}
+      </div>
+      <div class="text-muted small mt-1">
+        <span class="badge bg-danger">{{ inc_sum.get('high_count', 0) }} High</span>
+        <span class="badge bg-warning text-dark">{{ inc_sum.get('medium_count', 0) }} Med</span>
+        <span class="badge bg-secondary">{{ inc_sum.get('low_count', 0) }} Low</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Navigation Tabs -->
+<ul class="nav nav-pills custom-nav-pills mb-4" id="analysisTabs" role="tablist">
+  <li class="nav-item">
+    <button class="nav-link {% if tab != 'inconsistencies' %}active{% endif %}" id="summary-tab" data-bs-toggle="pill" data-bs-target="#tab-summary" type="button">
+      <i class="bi bi-file-text me-1"></i>Executive Summary
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" id="components-tab" data-bs-toggle="pill" data-bs-target="#tab-components" type="button">
+      <i class="bi bi-boxes me-1"></i>Components &amp; Ports ({{ components_data.get('components', [])|length }})
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" id="interfaces-tab" data-bs-toggle="pill" data-bs-target="#tab-interfaces" type="button">
+      <i class="bi bi-shuffle me-1"></i>Interfaces &amp; Signals ({{ components_data.get('interfaces', [])|length }})
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link" id="flows-tab" data-bs-toggle="pill" data-bs-target="#tab-flows" type="button">
+      <i class="bi bi-diagram-3-fill me-1"></i>Functional Flows ({{ components_data.get('functional_flows', [])|length }})
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link {% if tab == 'inconsistencies' %}active{% endif %}" id="inconsistencies-tab" data-bs-toggle="pill" data-bs-target="#tab-inconsistencies" type="button">
+      <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>Inconsistencies &amp; Gaps
+    </button>
+  </li>
+</ul>
+
+<!-- Tab Contents -->
+<div class="tab-content" id="analysisTabsContent">
+  <!-- 1. Executive Summary -->
+  <div class="tab-pane fade {% if tab != 'inconsistencies' %}show active{% endif %}" id="tab-summary" role="tabpanel">
+    <div class="row g-4">
+      <div class="col-lg-8">
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-header bg-white border-bottom py-3">
+            <h5 class="mb-0 text-navy"><i class="bi bi-card-text me-2 text-info"></i>Architectural Summary</h5>
+          </div>
+          <div class="card-body">
+            <h4 class="text-primary mb-3">{{ summary.get('title', doc.original_name) }}</h4>
+            <p class="lead text-secondary" style="font-size: 1.05rem; line-height: 1.7;">
+              {{ summary.get('summary', 'No summary available.') }}
+            </p>
+
+            <h6 class="mt-4 mb-2 text-navy fw-bold"><i class="bi bi-tag-fill me-2 text-info"></i>Key Architecture Topics</h6>
+            <div class="d-flex flex-wrap gap-2">
+              {% for topic in summary.get('key_topics', []) %}
+                <span class="badge bg-light text-navy border px-3 py-2 fs-6">
+                  <i class="bi bi-check2 text-success me-1"></i>{{ topic }}
+                </span>
+              {% else %}
+                <span class="text-muted small">No topics tagged.</span>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-4">
+        <!-- ECU Mapping Card -->
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-header bg-white border-bottom py-3">
+            <h5 class="mb-0 text-navy"><i class="bi bi-hdd-network me-2 text-info"></i>ECUs &amp; Hardware Targets</h5>
+          </div>
+          <div class="card-body">
+            {% if summary.get('ecu_names') %}
+              <ul class="list-group list-group-flush">
+                {% for ecu in summary.get('ecu_names', []) %}
+                  <li class="list-group-item d-flex align-items-center px-0">
+                    <i class="bi bi-motherboard text-primary fs-5 me-2"></i>
+                    <span class="fw-semibold">{{ ecu }}</span>
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p class="text-muted small mb-0">No specific ECU targets isolated in the text.</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Document Details Card -->
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-white border-bottom py-3">
+            <h5 class="mb-0 text-navy"><i class="bi bi-info-circle me-2 text-info"></i>Metadata</h5>
+          </div>
+          <div class="card-body">
+            <table class="table table-sm table-borderless mb-0">
+              <tr>
+                <td class="text-muted">Filename:</td>
+                <td class="text-end fw-semibold text-truncate" style="max-width: 150px;">{{ doc.original_name }}</td>
+              </tr>
+              <tr>
+                <td class="text-muted">Pages:</td>
+                <td class="text-end fw-semibold">{{ doc.page_count }}</td>
+              </tr>
+              <tr>
+                <td class="text-muted">Size:</td>
+                <td class="text-end fw-semibold">{{ doc.file_size|filesizeformat }}</td>
+              </tr>
+              <tr>
+                <td class="text-muted">Vector Index:</td>
+                <td class="text-end"><span class="badge bg-success-soft text-success">FAISS Indexed</span></td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Components & Ports -->
+  <div class="tab-pane fade" id="tab-components" role="tabpanel">
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <h5 class="mb-0 text-navy"><i class="bi bi-boxes me-2 text-info"></i>Software Components &amp; Modules</h5>
+        <a href="{{ url_for('analysis.components', doc_id=doc.id) }}" class="btn btn-sm btn-outline-primary">
+          <i class="bi bi-search me-1"></i>Search All in Inventory
+        </a>
+      </div>
+      <div class="card-body p-0">
+        {% if components_data.get('components') %}
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th class="ps-4">Component Name</th>
+                <th>Type</th>
+                <th>Description</th>
+                <th>Source Page / Ref</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for comp in components_data.get('components', []) %}
+              <tr>
+                <td class="ps-4 fw-bold text-navy">
+                  <i class="bi bi-box me-1 text-primary"></i>{{ comp.name }}
+                </td>
+                <td>
+                  <span class="badge bg-primary-soft text-primary">{{ comp.type or 'SWC' }}</span>
+                </td>
+                <td class="text-secondary small" style="max-width: 400px;">{{ comp.description }}</td>
+                <td>
+                  {% if comp.source_hint %}
+                    <span class="badge bg-light text-dark border">{{ comp.source_hint }}</span>
+                  {% else %}
+                    <span class="text-muted small">&mdash;</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="text-center py-4 text-muted mb-0">No components extracted from document.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Ports Table -->
+    {% if components_data.get('ports') %}
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white border-bottom py-3">
+        <h5 class="mb-0 text-navy"><i class="bi bi-plug me-2 text-info"></i>Software Ports (P-Ports &amp; R-Ports)</h5>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th class="ps-4">Port Name</th>
+                <th>Port Type</th>
+                <th>Component</th>
+                <th>Interface</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in components_data.get('ports', []) %}
+              <tr>
+                <td class="ps-4 fw-semibold text-navy">{{ p.name }}</td>
+                <td>
+                  <span class="badge {% if 'P-Port' in p.get('port_type', '') %}bg-success-soft text-success{% else %}bg-warning-soft text-warning{% endif %}">
+                    {{ p.port_type }}
+                  </span>
+                </td>
+                <td>{{ p.component_name }}</td>
+                <td><code class="text-primary">{{ p.interface_name }}</code></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Component Dependencies -->
+    {% if components_data.get('dependencies') %}
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-bottom py-3">
+        <h5 class="mb-0 text-navy"><i class="bi bi-arrow-left-right me-2 text-info"></i>Component Dependencies &amp; Couplings</h5>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th class="ps-4">Source Component</th>
+                <th>Relation</th>
+                <th>Target Component</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for dep in components_data.get('dependencies', []) %}
+              <tr>
+                <td class="ps-4 fw-semibold text-navy">{{ dep.source }}</td>
+                <td><span class="badge bg-info-soft text-info">{{ dep.dependency_type }}</span></td>
+                <td class="fw-semibold text-primary">{{ dep.target }}</td>
+                <td class="text-secondary small">{{ dep.description }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- 3. Interfaces & Signals -->
+  <div class="tab-pane fade" id="tab-interfaces" role="tabpanel">
+    <div class="row g-4">
+      <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white border-bottom py-3">
+            <h5 class="mb-0 text-navy"><i class="bi bi-shuffle me-2 text-info"></i>AUTOSAR Interfaces</h5>
+          </div>
+          <div class="card-body p-0">
+            {% if components_data.get('interfaces') %}
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th class="ps-4">Interface Name</th>
+                    <th>Type</th>
+                    <th>Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for iface in components_data.get('interfaces', []) %}
+                  <tr>
+                    <td class="ps-4 fw-bold text-navy">{{ iface.name }}</td>
+                    <td><span class="badge bg-light text-navy border">{{ iface.type }}</span></td>
+                    <td class="text-secondary small">{{ iface.description }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% else %}
+            <p class="text-center py-4 text-muted mb-0">No interfaces listed.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white border-bottom py-3">
+            <h5 class="mb-0 text-navy"><i class="bi bi-broadcast-pin me-2 text-info"></i>Signals &amp; Data Elements</h5>
+          </div>
+          <div class="card-body p-0">
+            {% if components_data.get('signals') %}
+            <div class="table-responsive">
+              <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th class="ps-4">Signal Name</th>
+                    <th>Data Type</th>
+                    <th>Direction</th>
+                    <th>Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for sig in components_data.get('signals', []) %}
+                  <tr>
+                    <td class="ps-4 fw-semibold text-navy">{{ sig.name }}</td>
+                    <td><code>{{ sig.data_type }}</code></td>
+                    <td>
+                      {% if sig.direction %}
+                        <span class="badge bg-light text-dark border">{{ sig.direction }}</span>
+                      {% else %}
+                        &mdash;
+                      {% endif %}
+                    </td>
+                    <td class="text-secondary small">{{ sig.description }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            {% else %}
+            <p class="text-center py-4 text-muted mb-0">No discrete signals listed.</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Functional Flows -->
+  <div class="tab-pane fade" id="tab-flows" role="tabpanel">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-bottom py-3">
+        <h5 class="mb-0 text-navy"><i class="bi bi-diagram-3-fill me-2 text-info"></i>End-to-End Functional Flows</h5>
+      </div>
+      <div class="card-body">
+        {% if components_data.get('functional_flows') %}
+          <div class="row g-4">
+            {% for flow in components_data.get('functional_flows', []) %}
+            <div class="col-12">
+              <div class="p-3 border rounded-3 bg-light">
+                <h5 class="text-navy mb-2"><i class="bi bi-play-circle text-info me-2"></i>{{ flow.name }}</h5>
+                <p class="text-secondary mb-3">{{ flow.description }}</p>
+                {% if flow.steps %}
+                <h6 class="text-muted text-uppercase small fw-bold">Sequence Steps:</h6>
+                <div class="flow-steps d-flex flex-wrap gap-2 align-items-center">
+                  {% for step in flow.steps %}
+                    <div class="flow-step-box p-2 bg-white rounded border shadow-sm">
+                      <span class="badge bg-navy me-1">{{ loop.index }}</span>
+                      <span class="small fw-semibold text-secondary">{{ step }}</span>
+                    </div>
+                    {% if not loop.last %}
+                      <i class="bi bi-arrow-right text-info fs-5"></i>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="text-center py-5 text-muted">
+            <i class="bi bi-diagram-3 fs-1 text-secondary opacity-50 mb-2 d-block"></i>
+            <p>No end-to-end functional flows were explicitly detailed in this document.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Inconsistencies & Gaps -->
+  <div class="tab-pane fade {% if tab == 'inconsistencies' %}show active{% endif %}" id="tab-inconsistencies" role="tabpanel">
+    <div class="row g-4">
+      <!-- Missing Dependencies -->
+      <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 text-navy">
+              <i class="bi bi-link-45deg me-2 text-danger"></i>Missing Dependencies ({{ inconsistencies.get('missing_dependencies', [])|length }})
+            </h5>
+          </div>
+          <div class="card-body p-0">
+            {% if inconsistencies.get('missing_dependencies') %}
+              <div class="list-group list-group-flush">
+                {% for item in inconsistencies.get('missing_dependencies', []) %}
+                <div class="list-group-item p-3">
+                  <div class="d-flex justify-content-between align-items-start mb-1">
+                    <span class="fw-bold text-navy">{{ item.affected_component or 'General' }}</span>
+                    <span class="badge {% if item.severity == 'High' %}bg-danger{% elif item.severity == 'Medium' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                      {{ item.severity }}
+                    </span>
+                  </div>
+                  <p class="text-secondary small mb-0">{{ item.description }}</p>
+                </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="text-center py-4 text-success">
+                <i class="bi bi-check-circle fs-3 d-block mb-1"></i>
+                <small>No missing dependencies identified.</small>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Inconsistent Interfaces -->
+      <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 text-navy">
+              <i class="bi bi-shuffle me-2 text-warning"></i>Inconsistent Interfaces ({{ inconsistencies.get('inconsistent_interfaces', [])|length }})
+            </h5>
+          </div>
+          <div class="card-body p-0">
+            {% if inconsistencies.get('inconsistent_interfaces') %}
+              <div class="list-group list-group-flush">
+                {% for item in inconsistencies.get('inconsistent_interfaces', []) %}
+                <div class="list-group-item p-3">
+                  <div class="d-flex justify-content-between align-items-start mb-1">
+                    <span class="fw-bold text-navy">{{ item.interface_name or 'Interface' }}</span>
+                    <span class="badge {% if item.severity == 'High' %}bg-danger{% elif item.severity == 'Medium' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                      {{ item.severity }}
+                    </span>
+                  </div>
+                  <p class="text-secondary small mb-0">{{ item.description }}</p>
+                </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="text-center py-4 text-success">
+                <i class="bi bi-check-circle fs-3 d-block mb-1"></i>
+                <small>No interface mismatches detected.</small>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Incomplete Architecture Information -->
+      <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white border-bottom py-3">
+            <h5 class="mb-0 text-navy">
+              <i class="bi bi-question-circle me-2 text-info"></i>Incomplete Architectural Info ({{ inconsistencies.get('incomplete_info', [])|length }})
+            </h5>
+          </div>
+          <div class="card-body p-0">
+            {% if inconsistencies.get('incomplete_info') %}
+              <div class="list-group list-group-flush">
+                {% for item in inconsistencies.get('incomplete_info', []) %}
+                <div class="list-group-item p-3">
+                  <div class="d-flex justify-content-between align-items-start mb-1">
+                    <span class="fw-bold text-navy">{{ item.section or 'Document Section' }}</span>
+                    <span class="badge bg-secondary">{{ item.severity or 'Info' }}</span>
+                  </div>
+                  <p class="text-secondary small mb-0">{{ item.description }}</p>
+                </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="text-center py-4 text-success">
+                <i class="bi bi-check-circle fs-3 d-block mb-1"></i>
+                <small>No incomplete sections flagged.</small>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Recommendations -->
+      <div class="col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-header bg-white border-bottom py-3">
+            <h5 class="mb-0 text-navy">
+              <i class="bi bi-lightbulb-fill me-2 text-warning"></i>Architectural Recommendations
+            </h5>
+          </div>
+          <div class="card-body p-0">
+            {% if inconsistencies.get('recommendations') %}
+              <div class="list-group list-group-flush">
+                {% for rec in inconsistencies.get('recommendations', []) %}
+                <div class="list-group-item p-3">
+                  <div class="d-flex justify-content-between align-items-start mb-1">
+                    <span class="fw-bold text-navy">{{ rec.recommendation }}</span>
+                    <span class="badge {% if rec.priority == 'High' %}bg-danger{% elif rec.priority == 'Medium' %}bg-warning text-dark{% else %}bg-info{% endif %}">
+                      {{ rec.priority }} Priority
+                    </span>
+                  </div>
+                  <p class="text-secondary small mb-0">{{ rec.rationale }}</p>
+                </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="text-center py-4 text-muted">
+                <small>No additional recommendations.</small>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

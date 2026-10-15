@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}Document Comparison{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col">
+    <h2 class="page-title"><i class="bi bi-arrow-left-right text-info me-2"></i>AUTOSAR HLD Comparison</h2>
+    <p class="text-muted mb-0">Compare two architecture documents to identify variations, migration deltas, and interface incompatibilities.</p>
+  </div>
+</div>
+
+<!-- Document Selection Form -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body p-4">
+    <form method="POST" action="{{ url_for('analysis.compare') }}">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-5">
+          <label class="form-label fw-bold text-navy"><i class="bi bi-file-earmark-diff text-primary me-1"></i>Document A (Baseline)</label>
+          <select name="doc_a" class="form-select" required>
+            <option value="">-- Select Baseline Document --</option>
+            {% for d in documents %}
+              <option value="{{ d.id }}" {% if doc_a and doc_a.id == d.id %}selected{% endif %}>
+                {{ d.original_name }} ({{ d.page_count }}p)
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label fw-bold text-navy"><i class="bi bi-file-earmark-diff text-info me-1"></i>Document B (Comparison Target)</label>
+          <select name="doc_b" class="form-select" required>
+            <option value="">-- Select Comparison Document --</option>
+            {% for d in documents %}
+              <option value="{{ d.id }}" {% if doc_b and doc_b.id == d.id %}selected{% endif %}>
+                {{ d.original_name }} ({{ d.page_count }}p)
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <button type="submit" class="btn btn-primary w-100" {% if documents|length < 2 %}disabled{% endif %}>
+            <i class="bi bi-shuffle me-1"></i>Compare
+          </button>
+        </div>
+      </div>
+      {% if documents|length < 2 %}
+      <div class="text-muted small mt-2">
+        <i class="bi bi-info-circle me-1"></i>You need at least two analyzed documents to run an architectural comparison.
+      </div>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+{% if comparison %}
+<!-- Comparison Results -->
+<div class="row mb-4">
+  <!-- Similarity & Summary Card -->
+  <div class="col-12">
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-body p-4">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+          <div>
+            <h4 class="text-navy mb-1"><i class="bi bi-bar-chart-steps text-info me-2"></i>Comparison Summary</h4>
+            <div class="text-muted">
+              Comparing <strong>{{ doc_a.original_name }}</strong> vs <strong>{{ doc_b.original_name }}</strong>
+            </div>
+          </div>
+          <div class="text-center p-3 rounded-3 bg-light border">
+            <div class="fs-2 fw-bold text-primary">{{ comparison.get('similarity_score', 0) }}%</div>
+            <small class="text-muted text-uppercase fw-semibold">Architectural Similarity</small>
+          </div>
+        </div>
+        <p class="lead text-secondary" style="font-size: 1.05rem;">
+          {{ comparison.get('summary', 'No summary generated.') }}
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Common vs Unique Components -->
+  <div class="col-md-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 text-navy"><i class="bi bi-link-45deg text-success me-2"></i>Common Components</h6>
+      </div>
+      <div class="card-body">
+        {% if comparison.get('common_components') %}
+          <ul class="list-group list-group-flush">
+            {% for item in comparison.get('common_components', []) %}
+              <li class="list-group-item px-0 py-2 d-flex align-items-center">
+                <i class="bi bi-check-circle-fill text-success me-2"></i>
+                <span class="fw-semibold text-navy">{{ item }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-muted small mb-0">No overlapping components detected.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 text-navy"><i class="bi bi-box-arrow-in-left text-primary me-2"></i>Only in Document A</h6>
+      </div>
+      <div class="card-body">
+        {% if comparison.get('only_in_a') %}
+          <ul class="list-group list-group-flush">
+            {% for item in comparison.get('only_in_a', []) %}
+              <li class="list-group-item px-0 py-2 d-flex align-items-center">
+                <i class="bi bi-dash-circle text-primary me-2"></i>
+                <span>{{ item }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-muted small mb-0">None unique to Document A.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 text-navy"><i class="bi bi-box-arrow-in-right text-info me-2"></i>Only in Document B</h6>
+      </div>
+      <div class="card-body">
+        {% if comparison.get('only_in_b') %}
+          <ul class="list-group list-group-flush">
+            {% for item in comparison.get('only_in_b', []) %}
+              <li class="list-group-item px-0 py-2 d-flex align-items-center">
+                <i class="bi bi-plus-circle text-info me-2"></i>
+                <span>{{ item }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-muted small mb-0">None unique to Document B.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Architectural Differences Table -->
+  <div class="col-12 mt-4">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-bottom py-3">
+        <h5 class="mb-0 text-navy"><i class="bi bi-diagram-2 text-info me-2"></i>Architectural &amp; Design Variation</h5>
+      </div>
+      <div class="card-body p-0">
+        {% if comparison.get('architectural_differences') %}
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th class="ps-4" style="width: 25%;">Design Aspect</th>
+                <th style="width: 37.5%;">Document A ({{ doc_a.original_name }})</th>
+                <th style="width: 37.5%;">Document B ({{ doc_b.original_name }})</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for diff in comparison.get('architectural_differences', []) %}
+              <tr>
+                <td class="ps-4 fw-bold text-navy">{{ diff.aspect }}</td>
+                <td class="text-secondary small">{{ diff.document_a_approach }}</td>
+                <td class="text-secondary small">{{ diff.document_b_approach }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="text-center py-4 text-muted mb-0">No architectural divergences noted.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Interface Differences & Compatibility Issues -->
+  <div class="col-lg-6 mt-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white border-bottom py-3">
+        <h5 class="mb-0 text-navy"><i class="bi bi-shuffle text-warning me-2"></i>Interface Differences</h5>
+      </div>
+      <div class="card-body p-0">
+        {% if comparison.get('interface_differences') %}
+          <div class="list-group list-group-flush">
+            {% for item in comparison.get('interface_differences', []) %}
+              <div class="list-group-item p-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <span class="badge {% if item.severity == 'High' %}bg-danger{% elif item.severity == 'Medium' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">
+                    {{ item.severity }}
+                  </span>
+                </div>
+                <div class="small text-secondary">{{ item.description }}</div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-center py-4 text-success mb-0"><i class="bi bi-check-circle me-1"></i>No interface mismatches.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6 mt-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white border-bottom py-3">
+        <h5 class="mb-0 text-navy"><i class="bi bi-shield-exclamation text-danger me-2"></i>Compatibility &amp; Integration Risks</h5>
+      </div>
+      <div class="card-body p-0">
+        {% if comparison.get('compatibility_issues') %}
+          <div class="list-group list-group-flush">
+            {% for issue in comparison.get('compatibility_issues', []) %}
+              <div class="list-group-item p-3">
+                <div class="fw-bold text-navy small mb-1">{{ issue.issue }}</div>
+                <div class="text-muted small"><i class="bi bi-arrow-return-right me-1 text-info"></i>{{ issue.recommendation }}</div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-center py-4 text-success mb-0"><i class="bi bi-check-circle me-1"></i>No major compatibility issues detected.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

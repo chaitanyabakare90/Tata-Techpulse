@@ -1,0 +1,306 @@
+/* ============================================================
+   AUTOSAR HLD Document Analysis Assistant - Custom Theme
+   Palette: Automotive Navy (#002b49, #0b192c), Light Blue (#0ea5e9, #38bdf8), Crisp White (#ffffff)
+============================================================ */
+
+:root {
+  --navy-dark: #071326;
+  --navy: #002b49;
+  --navy-light: #1e3a5f;
+  --navy-border: #cbd5e1;
+  --blue-primary: #0284c7;
+  --blue-info: #0ea5e9;
+  --blue-soft: #e0f2fe;
+  --light-bg: #f8fafc;
+  --card-bg: #ffffff;
+  --text-main: #1e293b;
+  --text-muted: #64748b;
+  --success-soft: #dcfce7;
+  --warning-soft: #fef3c7;
+  --danger-soft: #fee2e2;
+}
+
+body {
+  background-color: var(--light-bg);
+  color: var(--text-main);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1 0 auto;
+}
+
+/* ===== Navbar Styling ===== */
+.bg-navy {
+  background-color: var(--navy) !important;
+  border-bottom: 2px solid var(--blue-info);
+}
+
+.bg-navy-dark {
+  background-color: var(--navy-dark) !important;
+}
+
+.navbar-brand {
+  font-size: 1.25rem;
+  letter-spacing: 0.5px;
+}
+
+.navbar-nav .nav-link {
+  color: #e2e8f0 !important;
+  font-weight: 500;
+  padding: 0.5rem 0.9rem !important;
+  border-radius: 6px;
+  transition: all 0.2s ease-in-out;
+}
+
+.navbar-nav .nav-link:hover,
+.navbar-nav .nav-link.active {
+  color: #ffffff !important;
+  background-color: rgba(14, 165, 233, 0.15);
+}
+
+/* ===== Typography & Headers ===== */
+.page-title {
+  font-weight: 700;
+  color: var(--navy);
+  letter-spacing: -0.3px;
+  margin-bottom: 0.25rem;
+}
+
+.text-navy {
+  color: var(--navy) !important;
+}
+
+/* ===== Soft Color Badges ===== */
+.bg-primary-soft {
+  background-color: var(--blue-soft) !important;
+  color: var(--blue-primary) !important;
+}
+
+.bg-success-soft {
+  background-color: var(--success-soft) !important;
+  color: #15803d !important;
+}
+
+.bg-warning-soft {
+  background-color: var(--warning-soft) !important;
+  color: #b45309 !important;
+}
+
+.bg-info-soft {
+  background-color: #f0f9ff !important;
+  color: #0284c7 !important;
+}
+
+/* ===== Status Badges ===== */
+.status-uploaded {
+  background-color: #e2e8f0;
+  color: #475569;
+}
+.status-processing {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+.status-analyzed {
+  background-color: #dcfce7;
+  color: #166534;
+}
+.status-error {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+/* ===== Dashboard KPI Stat Cards ===== */
+.stat-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border-radius: 10px;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08) !important;
+}
+
+.stat-icon {
+  width: 54px;
+  height: 54px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-number {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--navy);
+  line-height: 1.1;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.btn-action {
+  text-align: left;
+  padding: 0.65rem 1rem;
+  font-weight: 500;
+  border-radius: 8px;
+}
+
+/* ===== Drop Zone ===== */
+.drop-zone {
+  border: 2px dashed #93c5fd;
+  border-radius: 12px;
+  background-color: #f0f7ff;
+  padding: 40px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.drop-zone:hover,
+.drop-zone.drag-over {
+  border-color: var(--blue-primary);
+  background-color: #e0f2fe;
+}
+
+/* ===== Custom Nav Pills ===== */
+.custom-nav-pills .nav-link {
+  color: var(--text-muted);
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 0.6rem 1.2rem;
+  transition: all 0.2s;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  margin-right: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.custom-nav-pills .nav-link:hover {
+  color: var(--navy);
+  border-color: #cbd5e1;
+}
+
+.custom-nav-pills .nav-link.active {
+  background-color: var(--navy) !important;
+  color: #ffffff !important;
+  border-color: var(--navy) !important;
+}
+
+/* ===== Chatbot Styling ===== */
+.chat-card {
+  height: calc(100vh - 190px);
+  min-height: 540px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-messages-container {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  background-color: #f8fafc;
+}
+
+.message-wrapper {
+  display: flex;
+  gap: 12px;
+  max-width: 85%;
+}
+
+.assistant-wrapper {
+  align-self: flex-start;
+}
+
+.user-wrapper {
+  align-self: flex-end;
+  flex-direction: row;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.message-bubble {
+  padding: 12px 18px;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.user-bubble {
+  background-color: var(--blue-primary);
+  color: #ffffff;
+  border-top-right-radius: 2px;
+}
+
+.assistant-bubble {
+  background-color: #ffffff;
+  color: var(--text-main);
+  border: 1px solid #e2e8f0;
+  border-top-left-radius: 2px;
+}
+
+.bubble-text code {
+  background-color: rgba(14, 165, 233, 0.1);
+  color: #0369a1;
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+
+/* Typing Indicator Animation */
+.typing-dots {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+}
+
+.typing-dots span {
+  width: 8px;
+  height: 8px;
+  background-color: #94a3b8;
+  border-radius: 50%;
+  animation: typing-blink 1.4s infinite both;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing-blink {
+  0% { opacity: 0.2; transform: translateY(0); }
+  20% { opacity: 1; transform: translateY(-4px); }
+  40% { opacity: 0.2; transform: translateY(0); }
+  100% { opacity: 0.2; transform: translateY(0); }
+}
+
+/* Flow Step Boxes */
+.flow-step-box {
+  transition: transform 0.15s ease;
+}
+.flow-step-box:hover {
+  transform: translateY(-1px);
+}

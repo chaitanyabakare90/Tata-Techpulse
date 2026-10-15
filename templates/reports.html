@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Reports &amp; Exports{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col">
+    <h2 class="page-title"><i class="bi bi-file-earmark-bar-graph text-info me-2"></i>Analysis Reports &amp; Exports</h2>
+    <p class="text-muted mb-0">Generate, view, and export AUTOSAR architectural analysis packages in JSON, CSV, and printable HTML formats.</p>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-white border-bottom py-3">
+    <h5 class="mb-0 text-navy"><i class="bi bi-file-earmark-arrow-down me-2 text-info"></i>Available Document Reports</h5>
+  </div>
+  <div class="card-body p-0">
+    {% if documents %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-4">Document</th>
+            <th>Uploaded</th>
+            <th>Pages</th>
+            <th class="text-end pe-4">Export Options</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for doc in documents %}
+          <tr>
+            <td class="ps-4">
+              <div class="d-flex align-items-center">
+                <i class="bi bi-file-earmark-pdf fs-3 text-danger me-3"></i>
+                <div>
+                  <span class="fw-bold text-navy">{{ doc.original_name }}</span>
+                  <div class="text-muted small">Size: {{ doc.file_size|filesizeformat }}</div>
+                </div>
+              </div>
+            </td>
+            <td class="text-muted small">{{ doc.upload_date|short_date }}</td>
+            <td><span class="badge bg-light text-dark border">{{ doc.page_count }} Pages</span></td>
+            <td class="text-end pe-4">
+              <div class="btn-group">
+                <a href="{{ url_for('reports.report_html', doc_id=doc.id) }}" target="_blank" class="btn btn-sm btn-info text-white" title="Open Printable Report">
+                  <i class="bi bi-printer me-1"></i>View / Print Report
+                </a>
+                <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+                  <span class="visually-hidden">Toggle Dropdown</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow">
+                  <li>
+                    <h6 class="dropdown-header text-uppercase small">Machine Readable</h6>
+                  </li>
+                  <li>
+                    <a class="dropdown-item" href="{{ url_for('reports.export_json', doc_id=doc.id) }}">
+                      <i class="bi bi-filetype-json text-primary me-2"></i>Full Analysis (JSON)
+                    </a>
+                  </li>
+                  <li><hr class="dropdown-divider"></li>
+                  <li>
+                    <h6 class="dropdown-header text-uppercase small">Spreadsheets (CSV)</h6>
+                  </li>
+                  <li>
+                    <a class="dropdown-item" href="{{ url_for('reports.export_components_csv', doc_id=doc.id) }}">
+                      <i class="bi bi-filetype-csv text-success me-2"></i>Components Inventory (CSV)
+                    </a>
+                  </li>
+                  <li>
+                    <a class="dropdown-item" href="{{ url_for('reports.export_inconsistencies_csv', doc_id=doc.id) }}">
+                      <i class="bi bi-filetype-csv text-danger me-2"></i>Inconsistencies &amp; Gaps (CSV)
+                    </a>
+                  </li>
+                </ul>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5 text-muted">
+      <i class="bi bi-folder-x fs-1 opacity-50 d-block mb-3"></i>
+      <h5>No Analyzed Documents Available</h5>
+      <p class="mb-3">Upload and analyze an AUTOSAR HLD document to export architectural reports.</p>
+      <a href="{{ url_for('documents.upload') }}" class="btn btn-primary">
+        <i class="bi bi-cloud-upload me-1"></i>Upload PDF
+      </a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

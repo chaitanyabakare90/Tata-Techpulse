@@ -1,0 +1,326 @@
+{% extends "base.html" %}
+{% block title %}AI Chatbot{% endblock %}
+
+{% block content %}
+<div class="row mb-3 align-items-center">
+  <div class="col">
+    <h2 class="page-title"><i class="bi bi-chat-dots text-info me-2"></i>AUTOSAR Architecture AI Chat</h2>
+    <p class="text-muted mb-0">Ask questions grounded in the technical design with verified source citations.</p>
+  </div>
+  <div class="col-auto d-flex align-items-center gap-2">
+    <!-- Document Selector Dropdown -->
+    <div class="input-group">
+      <span class="input-group-text bg-white"><i class="bi bi-file-earmark-pdf text-danger"></i></span>
+      <select class="form-select" id="docSelect" onchange="switchDocument(this.value)">
+        <option value="">-- Choose Document --</option>
+        {% for d in documents %}
+          <option value="{{ d.id }}" {% if selected_doc and selected_doc.id == d.id %}selected{% endif %}>
+            {{ d.original_name }} ({{ d.page_count }}p)
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    {% if selected_doc %}
+      <button class="btn btn-outline-danger btn-sm" onclick="clearChat()" title="Clear Chat History">
+        <i class="bi bi-trash me-1"></i>Clear
+      </button>
+    {% endif %}
+  </div>
+</div>
+
+{% if not selected_doc %}
+<div class="row justify-content-center my-5">
+  <div class="col-md-7 text-center">
+    <div class="card border-0 shadow-sm p-5">
+      <div class="mb-3 text-info">
+        <i class="bi bi-chat-square-text display-3"></i>
+      </div>
+      <h4 class="text-navy">Select an HLD Document to Begin</h4>
+      <p class="text-muted">Choose any analyzed AUTOSAR High-Level Design document from the dropdown above to query software components, interfaces, signal definitions, or dependencies.</p>
+      {% if documents %}
+        <div class="d-flex flex-wrap gap-2 justify-content-center mt-3">
+          {% for d in documents %}
+            <a href="{{ url_for('chatbot.chat_with_doc', doc_id=d.id) }}" class="btn btn-outline-primary btn-sm">
+              <i class="bi bi-file-earmark-pdf me-1"></i>{{ d.original_name }}
+            </a>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="mt-2">
+          <a href="{{ url_for('documents.upload') }}" class="btn btn-primary">
+            <i class="bi bi-cloud-upload me-1"></i>Upload and Analyze a PDF
+          </a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="row g-3">
+  <!-- Chat Main Panel -->
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm chat-card">
+      <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <div>
+          <span class="badge bg-success-soft text-success me-2">Grounded in RAG</span>
+          <strong class="text-navy">{{ selected_doc.original_name }}</strong>
+        </div>
+        <small class="text-muted"><i class="bi bi-files me-1"></i>{{ selected_doc.page_count }} Pages Indexed</small>
+      </div>
+
+      <!-- Messages Stream -->
+      <div class="card-body chat-messages-container" id="chatBox">
+        <!-- Welcome Prompt -->
+        <div class="message-wrapper assistant-wrapper">
+          <div class="avatar bg-navy text-white"><i class="bi bi-robot"></i></div>
+          <div class="message-bubble assistant-bubble shadow-sm">
+            <p class="mb-1">
+              Hello! I am your <strong>AUTOSAR HLD Analysis Assistant</strong>. I have read and indexed <code>{{ selected_doc.original_name }}</code>.
+            </p>
+            <p class="mb-0 text-muted small">
+              You can ask me about software components, port interfaces, signals, ECU mapping, or architectural dependencies. Every answer is grounded with source page citations.
+            </p>
+          </div>
+        </div>
+
+        {% for msg in messages %}
+          {% if msg.role == 'user' %}
+            <div class="message-wrapper user-wrapper">
+              <div class="message-bubble user-bubble shadow-sm">
+                {{ msg.content }}
+              </div>
+              <div class="avatar bg-primary text-white"><i class="bi bi-person"></i></div>
+            </div>
+          {% else %}
+            <div class="message-wrapper assistant-wrapper">
+              <div class="avatar bg-navy text-white"><i class="bi bi-robot"></i></div>
+              <div class="message-bubble assistant-bubble shadow-sm">
+                <div class="bubble-text">{{ msg.content }}</div>
+                {% if msg.source_pages %}
+                  <div class="source-citations mt-2 pt-2 border-top">
+                    <small class="text-muted fw-bold"><i class="bi bi-bookmark-check-fill text-info me-1"></i>Source Citations:</small>
+                    {% for p in msg.source_pages.split(',') if p %}
+                      <span class="badge bg-light text-navy border ms-1">Page {{ p }}</span>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          {% endif %}
+        {% endfor %}
+      </div>
+
+      <!-- Chat Input Form -->
+      <div class="card-footer bg-white border-top p-3">
+        <form id="chatForm" onsubmit="sendMessage(event)">
+          <div class="input-group">
+            <input type="text" id="userInput" class="form-control" placeholder="Ask about components, interfaces, dependencies, or signals..." autocomplete="off" required>
+            <button class="btn btn-primary px-4" type="submit" id="sendBtn">
+              <i class="bi bi-send-fill me-1"></i>Send
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar: Suggested Prompts & Doc Context -->
+  <div class="col-lg-4">
+    <!-- Quick Prompts Card -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 text-navy"><i class="bi bi-lightbulb-fill text-warning me-2"></i>Suggested Questions</h6>
+      </div>
+      <div class="card-body">
+        <div class="d-grid gap-2">
+          <button class="btn btn-sm btn-outline-secondary text-start prompt-btn" onclick="usePrompt(this)">
+            <i class="bi bi-chevron-right text-info me-1"></i>What Software Components (SWCs) are defined in this document?
+          </button>
+          <button class="btn btn-sm btn-outline-secondary text-start prompt-btn" onclick="usePrompt(this)">
+            <i class="bi bi-chevron-right text-info me-1"></i>List all interfaces and their communication types.
+          </button>
+          <button class="btn btn-sm btn-outline-secondary text-start prompt-btn" onclick="usePrompt(this)">
+            <i class="bi bi-chevron-right text-info me-1"></i>Are there any missing dependencies or unmapped ports?
+          </button>
+          <button class="btn btn-sm btn-outline-secondary text-start prompt-btn" onclick="usePrompt(this)">
+            <i class="bi bi-chevron-right text-info me-1"></i>What signals are exchanged between the main controllers?
+          </button>
+          <button class="btn btn-sm btn-outline-secondary text-start prompt-btn" onclick="usePrompt(this)">
+            <i class="bi bi-chevron-right text-info me-1"></i>Summarize the functional flow for initialization and error handling.
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Document Context -->
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 text-navy"><i class="bi bi-info-circle text-info me-2"></i>Active Context</h6>
+      </div>
+      <div class="card-body">
+        <div class="mb-2">
+          <small class="text-muted d-block">Target Document:</small>
+          <strong class="text-navy">{{ selected_doc.original_name }}</strong>
+        </div>
+        <div class="mb-2">
+          <small class="text-muted d-block">Indexing Status:</small>
+          <span class="badge bg-success-soft text-success"><i class="bi bi-check-circle me-1"></i>FAISS Cosine Similarity Active</span>
+        </div>
+        <div class="mb-0">
+          <small class="text-muted d-block">RAG Strategy:</small>
+          <span class="small text-secondary">Retrieves top 6 context chunks per query, cites pages strictly from document context.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if selected_doc %}
+<script>
+const docId = {{ selected_doc.id }};
+const chatBox = document.getElementById('chatBox');
+const userInput = document.getElementById('userInput');
+const sendBtn = document.getElementById('sendBtn');
+
+function scrollToBottom() {
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+scrollToBottom();
+
+function switchDocument(newDocId) {
+  if (newDocId) {
+    window.location.href = `/chat/${newDocId}`;
+  } else {
+    window.location.href = `/chat/`;
+  }
+}
+
+function usePrompt(btn) {
+  userInput.value = btn.innerText.replace('chevron_right', '').trim();
+  userInput.focus();
+}
+
+function appendUserMessage(text) {
+  const div = document.createElement('div');
+  div.className = 'message-wrapper user-wrapper';
+  div.innerHTML = `
+    <div class="message-bubble user-bubble shadow-sm">${escapeHtml(text)}</div>
+    <div class="avatar bg-primary text-white"><i class="bi bi-person"></i></div>
+  `;
+  chatBox.appendChild(div);
+  scrollToBottom();
+}
+
+function appendAssistantMessage(text, sourcePages) {
+  const div = document.createElement('div');
+  div.className = 'message-wrapper assistant-wrapper';
+  
+  let citationsHtml = '';
+  if (sourcePages && sourcePages.length > 0) {
+    const badges = sourcePages.map(p => `<span class="badge bg-light text-navy border ms-1">Page ${p}</span>`).join('');
+    citationsHtml = `
+      <div class="source-citations mt-2 pt-2 border-top">
+        <small class="text-muted fw-bold"><i class="bi bi-bookmark-check-fill text-info me-1"></i>Source Citations:</small>
+        ${badges}
+      </div>
+    `;
+  }
+
+  div.innerHTML = `
+    <div class="avatar bg-navy text-white"><i class="bi bi-robot"></i></div>
+    <div class="message-bubble assistant-bubble shadow-sm">
+      <div class="bubble-text">${formatResponseText(text)}</div>
+      ${citationsHtml}
+    </div>
+  `;
+  chatBox.appendChild(div);
+  scrollToBottom();
+}
+
+function appendTypingIndicator() {
+  const div = document.createElement('div');
+  div.id = 'typingIndicator';
+  div.className = 'message-wrapper assistant-wrapper';
+  div.innerHTML = `
+    <div class="avatar bg-navy text-white"><i class="bi bi-robot"></i></div>
+    <div class="message-bubble assistant-bubble shadow-sm">
+      <div class="typing-dots">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+  `;
+  chatBox.appendChild(div);
+  scrollToBottom();
+}
+
+function removeTypingIndicator() {
+  const indicator = document.getElementById('typingIndicator');
+  if (indicator) indicator.remove();
+}
+
+function escapeHtml(string) {
+  const entityMap = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'};
+  return String(string).replace(/[&<>"']/g, s => entityMap[s]);
+}
+
+function formatResponseText(text) {
+  // Simple markdown conversion for bold and line breaks
+  let formatted = escapeHtml(text)
+    .replace(/\n\n/g, '<br><br>')
+    .replace(/\n/g, '<br>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/`(.*?)`/g, '<code>$1</code>');
+  return formatted;
+}
+
+function sendMessage(e) {
+  e.preventDefault();
+  const query = userInput.value.trim();
+  if (!query) return;
+
+  userInput.value = '';
+  userInput.disabled = true;
+  sendBtn.disabled = true;
+
+  appendUserMessage(query);
+  appendTypingIndicator();
+
+  fetch(`/chat/${docId}/ask`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({question: query})
+  })
+  .then(res => res.json())
+  .then(data => {
+    removeTypingIndicator();
+    userInput.disabled = false;
+    sendBtn.disabled = false;
+    userInput.focus();
+
+    if (data.error) {
+      appendAssistantMessage('Sorry, an error occurred: ' + data.error, []);
+    } else {
+      appendAssistantMessage(data.answer, data.source_pages);
+    }
+  })
+  .catch(err => {
+    removeTypingIndicator();
+    userInput.disabled = false;
+    sendBtn.disabled = false;
+    appendAssistantMessage('Network connection error: ' + err, []);
+  });
+}
+
+function clearChat() {
+  if (!confirm('Clear the chat history for this document?')) return;
+  fetch(`/chat/${docId}/clear`, {method: 'POST'})
+    .then(r => r.json())
+    .then(() => location.reload());
+}
+</script>
+{% endif %}
+{% endblock %}
